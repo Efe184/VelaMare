@@ -19,7 +19,7 @@ export class CameraManager {
   }
 
   private setupCamera(): void {
-    this.camera.position.set(0, 5, 10);
+    this.camera.position.set(0, 10, 20);
     this.camera.lookAt(0, 0, 0);
   }
 

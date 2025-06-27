@@ -2,46 +2,36 @@ import * as THREE from 'three';
 import { RendererManager } from '../managers/renderer-manager';
 import { CameraManager } from '../managers/camera-manager';
 import { LightManager } from '../managers/light-manager';
+import { SkyManager } from '../managers/sky-manager';
+import { WaterManager } from '../managers/water-manager';
 
 export class MainScene {
   private scene: THREE.Scene;
   private rendererManager: RendererManager;
   private cameraManager: CameraManager;
   private lightManager: LightManager;
+  private skyManager: SkyManager;
+  private waterManager: WaterManager;
   private animationId: number | null = null;
   private isRunning = false;
+  private lastTime = performance.now();
 
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene();
     this.rendererManager = new RendererManager(container);
     this.cameraManager = new CameraManager();
     this.lightManager = new LightManager(this.scene);
+    this.skyManager = new SkyManager(this.scene);
+    this.waterManager = new WaterManager(this.scene);
     
     this.setupScene();
     this.setupEventListeners();
   }
 
   private setupScene(): void {
-    // Set scene background to match renderer clear color (gray)
-    this.scene.background = new THREE.Color(0x808080);
-    
-    // Add a simple reference object (cube) to verify the scene is working
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-    const cube = new THREE.Mesh(geometry, material);
-    cube.position.set(0, 0, 0);
-    cube.castShadow = true;
-    cube.receiveShadow = true;
-    this.scene.add(cube);
-
-    // Add a ground plane
-    const planeGeometry = new THREE.PlaneGeometry(20, 20);
-    const planeMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -2;
-    plane.receiveShadow = true;
-    this.scene.add(plane);
+    // Sadece sky ve water yöneticileri sahneye ekleniyor
+    // SkyManager ve WaterManager kendi objelerini sahneye ekler
+    this.scene.background = null; // Sky objesi arka planı yönetecek
   }
 
   private setupEventListeners(): void {
@@ -60,7 +50,17 @@ export class MainScene {
     if (!this.isRunning) return;
 
     this.animationId = requestAnimationFrame(this.animate.bind(this));
+    const now = performance.now();
+    const delta = (now - this.lastTime) / 1000;
+    this.lastTime = now;
+    this.update(delta);
     this.render();
+  }
+
+  // Sky ve Water animasyonlarını güncelle
+  private update(delta: number): void {
+    this.skyManager.update(delta);
+    this.waterManager.update(delta);
   }
 
   private render(): void {
@@ -72,6 +72,7 @@ export class MainScene {
     if (this.isRunning) return;
     
     this.isRunning = true;
+    this.lastTime = performance.now();
     this.animate();
   }
 
@@ -97,11 +98,12 @@ export class MainScene {
 
   public dispose(): void {
     this.stop();
+    this.skyManager.dispose();
+    this.waterManager.dispose();
     this.lightManager.dispose();
     this.rendererManager.dispose();
     window.removeEventListener('resize', this.handleResize);
-    
-    // Clean up scene
+    // Sahnedeki tüm meshleri temizle
     this.scene.traverse((object) => {
       if (object instanceof THREE.Mesh) {
         object.geometry.dispose();
