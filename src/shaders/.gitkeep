@@ -1,0 +1,8 @@
+# Shaders Directory
+
+This directory will contain all shader files:
+- .glsl files - Common shader utilities
+- .vert files - Vertex shaders
+- .frag files - Fragment shaders
+
+All shaders must be separate, reusable files following the project naming conventions. 

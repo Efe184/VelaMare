@@ -1,0 +1,9 @@
+# Assets Directory
+
+This directory will contain all external resources:
+- textures/ - Image files for materials
+- models/ - GLB/GLTF 3D model files  
+- hdri/ - Environment maps
+- audio/ - Sound files
+
+Assets should be organized in subdirectories by type. 
