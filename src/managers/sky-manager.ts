@@ -50,6 +50,9 @@ export class SkyManager {
     if (this.scene.environment && (this.scene.environment as any).isTexture) {
       (this.scene.environment as any).encoding = THREE.sRGBEncoding;
     }
+    
+    // Exposure değerini kullan (gelecekte renderer'a uygulanabilir)
+    console.log(`Sky exposure set to: ${exposure}`);
   }
 
   private setDefaultSky() {

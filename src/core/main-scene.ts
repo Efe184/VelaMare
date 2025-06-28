@@ -5,6 +5,7 @@ import { LightManager } from '../managers/light-manager';
 import { SkyManager } from '../managers/sky-manager';
 import { WaterManager } from '../managers/water-manager';
 import { BoatService } from '../services/boat-service';
+import { MarineLifeService } from '../services/marine-life-service';
 
 export class MainScene {
   private scene: THREE.Scene;
@@ -14,6 +15,7 @@ export class MainScene {
   private skyManager: SkyManager;
   private waterManager: WaterManager;
   private boatService: BoatService;
+  private marineLifeService: MarineLifeService;
   private animationId: number | null = null;
   private isRunning = false;
   private lastTime = performance.now();
@@ -26,6 +28,7 @@ export class MainScene {
     this.skyManager = new SkyManager(this.scene);
     this.waterManager = new WaterManager(this.scene);
     this.boatService = new BoatService(this.scene, this.cameraManager);
+    this.marineLifeService = new MarineLifeService(this.scene, this.boatService);
     
     this.setupScene();
     this.setupEventListeners();
@@ -60,11 +63,12 @@ export class MainScene {
     this.render();
   }
 
-  // Sky, Water ve Boat animasyonlarını güncelle
+  // Sky, Water, Boat ve Marine Life animasyonlarını güncelle
   private update(delta: number): void {
     this.skyManager.update(delta);
     this.waterManager.update(delta);
     this.boatService.update(delta);
+    this.marineLifeService.update(delta);
   }
 
   private render(): void {
@@ -102,6 +106,7 @@ export class MainScene {
 
   public dispose(): void {
     this.stop();
+    this.marineLifeService.dispose();
     this.boatService.dispose();
     this.skyManager.dispose();
     this.waterManager.dispose();

@@ -105,7 +105,7 @@ export class HDRILoaderService {
     } = options;
 
     environmentMap.minFilter = minFilter;
-    environmentMap.magFilter = magFilter;
+    environmentMap.magFilter = magFilter as THREE.MagnificationTextureFilter;
     environmentMap.generateMipmaps = generateMipmaps;
     environmentMap.needsUpdate = true;
 
