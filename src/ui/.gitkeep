@@ -1,0 +1,9 @@
+# UI Directory
+
+This directory will contain GUI elements:
+- dat.GUI controls
+- HTML UI components  
+- Button controls
+- Menu systems
+
+All UI code should follow the project naming conventions and be implemented in TypeScript. 

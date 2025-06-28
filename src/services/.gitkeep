@@ -1,0 +1,9 @@
+# Services Directory
+
+This directory will contain time-based behavior services such as:
+- Animation services
+- Movement services  
+- Weather services
+- Fish behavior services
+
+All services should follow the project naming conventions and be implemented in TypeScript. 

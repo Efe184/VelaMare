@@ -1,0 +1,8 @@
+# Loaders Directory
+
+This directory will contain async loading utilities for:
+- 3D models (GLB/GLTF)
+- Textures
+- HDRI environments
+
+All loaders should follow the project naming conventions and be implemented in TypeScript. 
