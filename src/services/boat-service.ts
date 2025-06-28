@@ -17,6 +17,14 @@ export class BoatService {
   private MINIMUM_HEIGHT = 0.1; // Tekne su seviyesine yakın - bazen batar
   private WATER_LEVEL = 0;
   private originalModelPosition = new THREE.Vector3(0, 0, 0);
+  
+  // Smooth camera following properties
+  private currentCameraPosition = new THREE.Vector3();
+  private targetCameraPosition = new THREE.Vector3();
+  private currentLookAtPosition = new THREE.Vector3();
+  private targetLookAtPosition = new THREE.Vector3();
+  private cameraLerpFactor = 0.08; // Smooth following speed
+  private cameraLookAtLerpFactor = 0.12; // Look-at smoothing speed
 
   constructor(scene: THREE.Scene, cameraManager: CameraManager) {
     this.scene = scene;
@@ -50,7 +58,8 @@ export class BoatService {
       this.isLoaded = true;
       console.log('Tekne modeli başarıyla yüklendi');
       
-      // Kamerayı teknenin arkasına konumlandır
+      // Kamerayı teknenin arkasına konumlandır ve smooth following başlat
+      this.initializeCameraPosition();
       this.updateCameraPosition();
       
     } catch (error) {
@@ -121,7 +130,7 @@ export class BoatService {
     this.updateCameraPosition();
   }
 
-  private updateCameraPosition(): void {
+  private initializeCameraPosition(): void {
     if (!this.boatWrapper) return;
 
     const boatPosition = this.boatWrapper.position;
@@ -129,11 +138,51 @@ export class BoatService {
     
     cameraOffset.applyQuaternion(this.boatWrapper.quaternion);
     
-    const cameraPosition = boatPosition.clone().add(cameraOffset);
-    const lookAtPosition = boatPosition.clone().add(new THREE.Vector3(0, 2, 0));
+    // Initialize both current and target positions to avoid jarring on first load
+    this.currentCameraPosition.copy(boatPosition).add(cameraOffset);
+    this.targetCameraPosition.copy(this.currentCameraPosition);
+    
+    this.currentLookAtPosition.copy(boatPosition).add(new THREE.Vector3(0, 2, 0));
+    this.targetLookAtPosition.copy(this.currentLookAtPosition);
 
-    this.cameraManager.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-    this.cameraManager.lookAt(lookAtPosition);
+    // Set initial camera position immediately
+    this.cameraManager.setPosition(
+      this.currentCameraPosition.x,
+      this.currentCameraPosition.y,
+      this.currentCameraPosition.z
+    );
+    this.cameraManager.lookAt(this.currentLookAtPosition);
+  }
+
+  private updateCameraPosition(): void {
+    if (!this.boatWrapper) return;
+
+    const boatPosition = this.boatWrapper.position;
+    const cameraOffset = new THREE.Vector3(0, 6, 12);
+    
+    // Apply boat rotation to camera offset for dynamic positioning
+    cameraOffset.applyQuaternion(this.boatWrapper.quaternion);
+    
+    // Add subtle camera sway based on time for organic feeling
+    const cameraSwayX = Math.sin(this.time * 0.8) * 0.3;
+    const cameraSwayY = Math.cos(this.time * 0.6) * 0.2;
+    cameraOffset.add(new THREE.Vector3(cameraSwayX, cameraSwayY, 0));
+    
+    // Calculate target positions
+    this.targetCameraPosition.copy(boatPosition).add(cameraOffset);
+    this.targetLookAtPosition.copy(boatPosition).add(new THREE.Vector3(0, 2, 0));
+    
+    // Smooth interpolation towards target positions
+    this.currentCameraPosition.lerp(this.targetCameraPosition, this.cameraLerpFactor);
+    this.currentLookAtPosition.lerp(this.targetLookAtPosition, this.cameraLookAtLerpFactor);
+
+    // Apply smoothed positions to camera
+    this.cameraManager.setPosition(
+      this.currentCameraPosition.x,
+      this.currentCameraPosition.y,
+      this.currentCameraPosition.z
+    );
+    this.cameraManager.lookAt(this.currentLookAtPosition);
   }
 
   // Tekneyi hareket ettir
