@@ -258,9 +258,7 @@ src/
 5. Dalı push edin (`git push origin feature/harika-ozellik`)
 6. Bir Pull Request açın
 
-## 📄 Lisans
 
-Bu proje MIT Lisansı altında lisanslanmıştır - detaylar için LICENSE dosyasına bakın.
 
 ## 🙏 Teşekkürler
 
