@@ -17,6 +17,37 @@ export class BoatService {
   private MINIMUM_HEIGHT = 0.1; // Tekne su seviyesine yakın - bazen batar
   private WATER_LEVEL = 0;
   private originalModelPosition = new THREE.Vector3(0, 0, 0);
+  private isDarkMode = false;
+  private originalMaterials: Map<THREE.Material, { emissive: THREE.Color; emissiveIntensity: number }> = new Map();
+  
+  // Movement properties
+  private velocity = new THREE.Vector3();
+  private acceleration = new THREE.Vector3();
+  private angularVelocity = 0; // Rotasyon hızı
+  private readonly MAX_SPEED = 45; // Gerçekçi speedboat hızı
+  private readonly ACCELERATION_FORCE = 25; // Daha gerçekçi ivme
+  private readonly DRAG_COEFFICIENT = 0.96; // Su direnci - gerçekçi
+  private readonly ANGULAR_DRAG = 0.88; // Rotasyon sürtünmesi
+  private readonly MAX_ANGULAR_SPEED = 1.8; // Gerçekçi dönüş hızı
+  private readonly TURN_FORCE = 3.5; // Gerçekçi dönüş kuvveti
+  
+  // Gerçekçi tekne fiziği parametreleri
+  private readonly HULL_RESISTANCE = 0.94; // Tekne gövde direnci
+  private readonly WAKE_RESISTANCE = 0.92; // Dalga direnci (yüksek hızda)
+  private readonly SPEED_DEPENDENT_TURN = true; // Hıza bağlı dönüş etkinliği
+  
+  // Animasyon değişkenleri
+  private bankingAngle = 0; // Teknenin yatma açısı (Z rotasyonu)
+  private pitchAngle = 0; // Teknenin baş-kıç sallanması (X rotasyonu)
+  private targetBanking = 0;
+  private targetPitch = 0;
+  private readonly MAX_BANKING_ANGLE = 0.15; // Maksimum yatma açısı (radyan)
+  private readonly MAX_PITCH_ANGLE = 0.08; // Maksimum baş-kıç sallanma
+  private readonly ANIMATION_LERP_SPEED = 12.0; // Animasyon geçiş hızı
+  
+  // Boundary settings
+  private readonly BOUNDARY_SIZE = 128; // 256x256 alan için yarıçap (128 her yöne)
+  private readonly BOUNDARY_PADDING = 5; // Sınırdan biraz içeride dur
   
   // Smooth camera following properties
   private currentCameraPosition = new THREE.Vector3();
@@ -51,6 +82,9 @@ export class BoatService {
       this.boatModel.scale.setScalar(1);
       this.originalModelPosition.copy(this.boatModel.position);
       this.boatWrapper.add(this.boatModel);
+      
+      // Orijinal materyalleri kaydet
+      this.storeOriginalMaterials();
       
       // Built-in animasyonları kurulum
       this.setupAnimations(gltfResult.animations);
@@ -122,9 +156,18 @@ export class BoatService {
     this.boatWrapper.position.y = targetY; // Math.max kaldırıldı - tekne su altına da inebilir
     this.boatWrapper.position.z = this.basePosition.z;
 
-    // Hafif sallanma efekti - sadece rotasyon
-    this.boatWrapper.rotation.z = Math.sin(this.time * this.floatingSpeed * 0.7) * 0.03;
-    this.boatWrapper.rotation.x = Math.cos(this.time * this.floatingSpeed * 0.5) * 0.02;
+    // === ANİMASYON GÜNCELLEMELERİ ===
+    // Banking ve pitch açılarını yumuşakça güncelle
+    this.bankingAngle = THREE.MathUtils.lerp(this.bankingAngle, this.targetBanking, this.ANIMATION_LERP_SPEED * delta);
+    this.pitchAngle = THREE.MathUtils.lerp(this.pitchAngle, this.targetPitch, this.ANIMATION_LERP_SPEED * delta);
+    
+    // Doğal sallanma efekti (floating)
+    const naturalRoll = Math.sin(this.time * this.floatingSpeed * 0.7) * 0.02;
+    const naturalPitch = Math.cos(this.time * this.floatingSpeed * 0.5) * 0.015;
+    
+    // Banking, pitch ve doğal sallanmayı birleştir
+    this.boatWrapper.rotation.z = this.bankingAngle + naturalRoll;
+    this.boatWrapper.rotation.x = this.pitchAngle + naturalPitch;
 
     // Kamera pozisyonunu güncelle
     this.updateCameraPosition();
@@ -185,22 +228,150 @@ export class BoatService {
     this.cameraManager.lookAt(this.currentLookAtPosition);
   }
 
-  // Tekneyi hareket ettir
-  public moveBoat(direction: THREE.Vector3, speed: number): void {
+  // Gerçekçi fizik tabanlı hareket sistemi - hibrit yaklaşım
+  public applyMovementInput(inputDirection: THREE.Vector3, delta: number): void {
     if (!this.boatWrapper) return;
 
-    direction.normalize();
-    this.basePosition.add(direction.multiplyScalar(speed));
+    const hasForward = inputDirection.z < -0.1;
+    const hasBackward = inputDirection.z > 0.1;
+    const hasLeft = inputDirection.x < -0.1;
+    const hasRight = inputDirection.x > 0.1;
     
-    // Wrapper'ı hareket yönüne doğru döndür
-    if (direction.length() > 0) {
-      const targetRotation = Math.atan2(direction.x, direction.z);
-      this.boatWrapper.rotation.y = THREE.MathUtils.lerp(
-        this.boatWrapper.rotation.y,
-        targetRotation,
-        0.08
-      );
+    const currentSpeed = this.velocity.length();
+    
+    // === GERÇEK TEKNE FİZİĞİ: THRUST BAZLI SİSTEM ===
+    
+    // 1. İleri/Geri Thrust (Motor gücü)
+    let thrustForce = 0;
+    if (hasForward) {
+      thrustForce = this.ACCELERATION_FORCE; // İleri tam güç
+    } else if (hasBackward) {
+      thrustForce = -this.ACCELERATION_FORCE * 0.6; // Geri daha zayıf
     }
+    
+    // Thrust'ı teknenin ileri yönünde uygula
+    if (thrustForce !== 0) {
+      const thrustDirection = new THREE.Vector3(0, 0, -1); // Teknenin ileri yönü
+      thrustDirection.applyQuaternion(this.boatWrapper.quaternion);
+      this.acceleration.add(thrustDirection.multiplyScalar(thrustForce));
+    }
+    
+    // 2. Dönüş Sistemi - Sadece hareket halindeyken etkili (gerçekçi)
+    let steerInput = 0;
+    if (hasLeft) steerInput += 1;
+    if (hasRight) steerInput -= 1;
+    
+    if (steerInput !== 0) {
+      // Hıza bağlı dönüş etkinliği - yavaşken zor döner, hızlıyken kolay
+      const speedFactor = this.SPEED_DEPENDENT_TURN ? 
+        Math.min(currentSpeed / 10, 1.0) : 1.0; // 10 hız üzerinde tam etkinlik
+      
+      // İleri giderken normal dönüş, geri giderken ters dönüş
+      const directionMultiplier = hasBackward ? -1 : 1;
+      
+      const turnEffectiveness = speedFactor * directionMultiplier;
+      this.angularVelocity += steerInput * this.TURN_FORCE * turnEffectiveness * delta;
+    }
+    
+    // === GERÇEK SU DİRENCİ SİSTEMİ ===
+    
+    // Hıza bağlı direnç - yüksek hızda daha fazla direnç
+    let dynamicDrag = this.DRAG_COEFFICIENT;
+    if (currentSpeed > 20) {
+      // Yüksek hızda dalga direnci devreye girer
+      const wakeEffect = Math.min((currentSpeed - 20) / 20, 1.0);
+      dynamicDrag = THREE.MathUtils.lerp(this.DRAG_COEFFICIENT, this.WAKE_RESISTANCE, wakeEffect);
+    }
+    
+    // Hull direnci (tekne gövdesinin su ile teması)
+    const hullDrag = THREE.MathUtils.lerp(1.0, this.HULL_RESISTANCE, Math.min(currentSpeed / 15, 1.0));
+    
+    // === ANGULAR VELOCITY LİMİTLERİ VE DRAG ===
+    this.angularVelocity = Math.max(-this.MAX_ANGULAR_SPEED, 
+                                   Math.min(this.MAX_ANGULAR_SPEED, this.angularVelocity));
+    this.angularVelocity *= this.ANGULAR_DRAG;
+    
+    // === GERÇEKÇİ ANİMASYON HESAPLAMALARI ===
+    // Banking - dönüş sırasında tekne yatar
+    this.targetBanking = -this.angularVelocity * this.MAX_BANKING_ANGLE / this.MAX_ANGULAR_SPEED;
+    
+    // Pitch - ivme/fren sırasında baş-kıç sallanır
+    const forwardAcceleration = this.acceleration.clone();
+    if (this.boatWrapper) {
+      const inverseQuaternion = this.boatWrapper.quaternion.clone().invert();
+      forwardAcceleration.applyQuaternion(inverseQuaternion);
+      this.targetPitch = -forwardAcceleration.z * this.MAX_PITCH_ANGLE / this.ACCELERATION_FORCE;
+    }
+    
+    // === ROTASYONU UYGULA ===
+    this.boatWrapper.rotation.y += this.angularVelocity * delta;
+    
+    // === LINEAR VELOCITY GÜNCELLE ===
+    this.velocity.add(this.acceleration.clone().multiplyScalar(delta));
+    
+    // Maksimum hız sınırı
+    if (this.velocity.length() > this.MAX_SPEED) {
+      this.velocity.normalize().multiplyScalar(this.MAX_SPEED);
+    }
+
+    // Dinamik direnç uygula
+    this.velocity.multiplyScalar(dynamicDrag * hullDrag);
+    
+    // === POZİSYON GÜNCELLE ===
+    this.basePosition.add(this.velocity.clone().multiplyScalar(delta));
+    
+    // === SINIRLARI KONTROL ET ===
+    this.enforceBoundaries();
+    
+    // Acceleration'ı sıfırla (her frame'de yeniden hesaplanacak)
+    this.acceleration.set(0, 0, 0);
+  }
+
+  public getCurrentVelocity(): THREE.Vector3 {
+    return this.velocity.clone();
+  }
+
+  public getCurrentSpeed(): number {
+    return this.velocity.length();
+  }
+
+  public getAngularVelocity(): number {
+    return this.angularVelocity;
+  }
+
+  public getBankingAngle(): number {
+    return this.bankingAngle;
+  }
+
+  public getPitchAngle(): number {
+    return this.pitchAngle;
+  }
+
+  private enforceBoundaries(): void {
+    const maxPos = this.BOUNDARY_SIZE - this.BOUNDARY_PADDING;
+    const minPos = -this.BOUNDARY_SIZE + this.BOUNDARY_PADDING;
+
+    // X ekseni sınırları
+    if (this.basePosition.x > maxPos) {
+      this.basePosition.x = maxPos;
+      this.velocity.x = Math.min(0, this.velocity.x); // Sadece içeri doğru hareket
+    } else if (this.basePosition.x < minPos) {
+      this.basePosition.x = minPos;
+      this.velocity.x = Math.max(0, this.velocity.x); // Sadece içeri doğru hareket
+    }
+
+    // Z ekseni sınırları
+    if (this.basePosition.z > maxPos) {
+      this.basePosition.z = maxPos;
+      this.velocity.z = Math.min(0, this.velocity.z); // Sadece içeri doğru hareket
+    } else if (this.basePosition.z < minPos) {
+      this.basePosition.z = minPos;
+      this.velocity.z = Math.max(0, this.velocity.z); // Sadece içeri doğru hareket
+    }
+  }
+
+  public getBoundarySize(): number {
+    return this.BOUNDARY_SIZE;
   }
 
   // Su seviyesini ayarla
@@ -233,6 +404,60 @@ export class BoatService {
 
   public isBoatLoaded(): boolean {
     return this.isLoaded;
+  }
+
+  private storeOriginalMaterials(): void {
+    if (!this.boatModel) return;
+
+    this.boatModel.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const material = child.material;
+        if (material instanceof THREE.MeshStandardMaterial) {
+          this.originalMaterials.set(material, {
+            emissive: material.emissive.clone(),
+            emissiveIntensity: material.emissiveIntensity
+          });
+        }
+      }
+    });
+  }
+
+  public setDarkMode(isDark: boolean): void {
+    this.isDarkMode = isDark;
+    this.updateBoatMaterialsForDarkMode();
+  }
+
+  private updateBoatMaterialsForDarkMode(): void {
+    if (!this.boatModel) return;
+
+    this.boatModel.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const material = child.material;
+        if (material instanceof THREE.MeshStandardMaterial) {
+          const original = this.originalMaterials.get(material);
+          
+          if (this.isDarkMode) {
+            // Dark mode: Tekneye daha güçlü ışık ver
+            material.emissive.setHex(0x555555); // Daha parlak gri ışık
+            material.emissiveIntensity = 0.5;
+            // Biraz daha parlak yap
+            material.opacity = 1.0;
+            material.transparent = false;
+          } else {
+            // Light mode: Orijinal değerlere dön
+            if (original) {
+              material.emissive.copy(original.emissive);
+              material.emissiveIntensity = original.emissiveIntensity;
+            } else {
+              material.emissive.setHex(0x000000);
+              material.emissiveIntensity = 0.0;
+            }
+            material.opacity = 1.0;
+            material.transparent = false;
+          }
+        }
+      }
+    });
   }
 
   public dispose(): void {

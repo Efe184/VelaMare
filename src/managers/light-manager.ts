@@ -3,6 +3,7 @@ import * as THREE from 'three';
 export class LightManager {
   private lights: Map<string, THREE.Light>;
   private scene: THREE.Scene;
+  private isDarkMode = false;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -71,6 +72,38 @@ export class LightManager {
     const directionalLight = this.lights.get('directional');
     if (directionalLight) {
       directionalLight.intensity = intensity;
+    }
+  }
+
+  public setDarkMode(isDark: boolean): void {
+    this.isDarkMode = isDark;
+    this.updateLightsForMode();
+  }
+
+  private updateLightsForMode(): void {
+    const directionalLight = this.lights.get('directional');
+    const ambientLight = this.lights.get('ambient');
+
+    if (this.isDarkMode) {
+      // Dark mode: Dim lights, moonlight feel
+      if (directionalLight) {
+        directionalLight.intensity = 0.3;
+        directionalLight.color.setHex(0x9bb5ff); // Cooler, moonlight color
+      }
+      if (ambientLight) {
+        ambientLight.intensity = 0.1;
+        ambientLight.color.setHex(0x1a1a2e); // Dark blue ambient
+      }
+    } else {
+      // Light mode: Bright daylight
+      if (directionalLight) {
+        directionalLight.intensity = 1;
+        directionalLight.color.setHex(0xffffff); // White sunlight
+      }
+      if (ambientLight) {
+        ambientLight.intensity = 0.4;
+        ambientLight.color.setHex(0x404040); // Neutral gray ambient
+      }
     }
   }
 
