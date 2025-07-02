@@ -12,7 +12,7 @@ export class CameraManager {
 
   private createCamera(): THREE.PerspectiveCamera {
     const FOV = 75;
-    const NEAR = 0.1;
+    const NEAR = 0.01; // Çok daha küçük near plane - yakın objeler kaybolmasın
     const FAR = 1000;
 
     return new THREE.PerspectiveCamera(FOV, this.aspect, NEAR, FAR);

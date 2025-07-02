@@ -5,6 +5,7 @@ export class WaterManager {
   private scene: THREE.Scene;
   private waterMaterial!: THREE.ShaderMaterial;
   private time = 0;
+  private isDarkMode = false;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -36,10 +37,13 @@ export class WaterManager {
       `,
       fragmentShader: `
         uniform float time;
+        uniform bool isDarkMode;
         varying vec2 vUv;
         
         void main() {
-          vec3 color = vec3(0.1, 0.5, 0.8);
+          vec3 dayColor = vec3(0.1, 0.5, 0.8);
+          vec3 nightColor = vec3(0.05, 0.2, 0.4);
+          vec3 color = isDarkMode ? nightColor : dayColor;
           
           // Su dalgalarına göre renk değişimi
           float wave = sin(vUv.x * 20.0 + time) * sin(vUv.y * 20.0 + time * 0.5);
@@ -53,7 +57,8 @@ export class WaterManager {
         }
       `,
       uniforms: {
-        time: { value: 0.0 }
+        time: { value: 0.0 },
+        isDarkMode: { value: false }
       },
       transparent: true,
       side: THREE.DoubleSide,
@@ -81,6 +86,13 @@ export class WaterManager {
   // Maksimum dalga yüksekliğini al
   public getMaxWaveHeight(): number {
     return 1.05; // 0.5 + 0.3 + 0.15 + 0.1 = maksimum dalga yüksekliği
+  }
+
+  public setDarkMode(isDark: boolean): void {
+    this.isDarkMode = isDark;
+    if (this.waterMaterial && this.waterMaterial.uniforms) {
+      this.waterMaterial.uniforms.isDarkMode.value = isDark;
+    }
   }
 
   public getWater(): THREE.Mesh {
