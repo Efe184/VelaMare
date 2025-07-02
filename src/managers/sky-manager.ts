@@ -5,6 +5,7 @@ export class SkyManager {
   private sky: Sky;
   private sun: THREE.Vector3;
   private scene: THREE.Scene;
+  private isDarkMode = false;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -57,6 +58,37 @@ export class SkyManager {
 
   private setDefaultSky() {
     this.setSky();
+  }
+
+  public setDarkMode(isDark: boolean): void {
+    this.isDarkMode = isDark;
+    this.updateSkyForMode();
+  }
+
+  private updateSkyForMode(): void {
+    if (this.isDarkMode) {
+      // Dark mode: Night sky settings
+      this.setSky({
+        turbidity: 0.5,
+        rayleigh: 0.2,
+        mieCoefficient: 0.1,
+        mieDirectionalG: 0.8,
+        elevation: -10, // Sun below horizon
+        azimuth: 180,
+        exposure: 0.1,
+      });
+    } else {
+      // Light mode: Day sky settings
+      this.setSky({
+        turbidity: 10,
+        rayleigh: 2,
+        mieCoefficient: 0.005,
+        mieDirectionalG: 0.8,
+        elevation: 2,
+        azimuth: 180,
+        exposure: 0.7,
+      });
+    }
   }
 
   // Güneş pozisyonunu güncelle

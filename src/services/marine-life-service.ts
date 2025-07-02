@@ -49,12 +49,14 @@ export class MarineLifeService {
   private loaded = false;
   private goldFishLoaded = false;
   private fish07Loaded = false;
+  private isDarkMode = false;
   
-  private readonly FISH_COUNT = 20;
-  private readonly GOLD_FISH_COUNT = 8; // Daha az altın balık
-  private readonly FISH_07_COUNT = 12; // 07 balık sayısı artırıldı
-  private readonly SPAWN_RADIUS = 15; // Tekne çevresindeki alan
+  private readonly FISH_COUNT = 60; // 256x256 alan için daha fazla balık
+  private readonly GOLD_FISH_COUNT = 20; // Daha fazla altın balık
+  private readonly FISH_07_COUNT = 30; // Daha fazla 07 balık
+  private readonly BOUNDARY_SIZE = 128; // Tekne ile aynı sınır - 256x256 alan
   private readonly MIN_DISTANCE_FROM_BOAT = 3; // Tekneye minimum mesafe
+  private readonly GRID_SIZE = 16; // 256x256 alan için daha büyük grid
   private readonly SWIM_SPEED_MIN = 0.8;
   private readonly SWIM_SPEED_MAX = 2.5;
   private readonly GOLD_FISH_SPEED_MIN = 1.0; // Altın balıklar daha aktif
@@ -256,22 +258,20 @@ export class MarineLifeService {
   }
 
   private createFishInstance(): FishInstance {
-    const boatPosition = this.boatService.getBoatPosition();
+    // Homojen grid tabanlı pozisyon oluştur
+    const position = this.getHomogeneousPosition();
     
-    // Tekne çevresinde rastgele pozisyon üret (tekneye çok yakın olmayan)
-    let position: THREE.Vector3;
-    let attempts = 0;
-    do {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = this.MIN_DISTANCE_FROM_BOAT + Math.random() * (this.SPAWN_RADIUS - this.MIN_DISTANCE_FROM_BOAT);
+    // Eğer tekneye çok yakınsa, farklı bir grid pozisyonu dene
+    const boatPosition = this.boatService.getBoatPosition();
+    if (position.distanceTo(boatPosition) < this.MIN_DISTANCE_FROM_BOAT) {
+      // Alternatif grid pozisyonu
+      const gridX = Math.floor(Math.random() * this.GRID_SIZE);
+      const gridZ = Math.floor(Math.random() * this.GRID_SIZE);
+      const cellSize = (this.BOUNDARY_SIZE * 2) / this.GRID_SIZE;
       
-      position = new THREE.Vector3(
-        boatPosition.x + Math.cos(angle) * distance,
-        this.WATER_DEPTH_MIN + Math.random() * (this.WATER_DEPTH_MAX - this.WATER_DEPTH_MIN),
-        boatPosition.z + Math.sin(angle) * distance
-      );
-      attempts++;
-    } while (position.distanceTo(boatPosition) < this.MIN_DISTANCE_FROM_BOAT && attempts < 10);
+      position.x = -this.BOUNDARY_SIZE + (gridX + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+      position.z = -this.BOUNDARY_SIZE + (gridZ + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    }
 
     // Balığın yüzme merkezi noktası
     const centerPoint = position.clone();
@@ -311,22 +311,20 @@ export class MarineLifeService {
   }
 
   private createGoldFishInstance(): FishInstance {
-    const boatPosition = this.boatService.getBoatPosition();
+    // Homojen grid tabanlı pozisyon (altın balık için)
+    const position = this.getHomogeneousGoldFishPosition();
     
-    // Tekne çevresinde rastgele pozisyon üret (normal balıklardan farklı alan)
-    let position: THREE.Vector3;
-    let attempts = 0;
-    do {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = this.MIN_DISTANCE_FROM_BOAT + 2 + Math.random() * (this.SPAWN_RADIUS - this.MIN_DISTANCE_FROM_BOAT - 2);
+    // Tekneye mesafe kontrolü
+    const boatPosition = this.boatService.getBoatPosition();
+    if (position.distanceTo(boatPosition) < this.MIN_DISTANCE_FROM_BOAT + 2) {
+      // Farklı grid pozisyonu dene
+      const gridX = Math.floor(Math.random() * this.GRID_SIZE);
+      const gridZ = Math.floor(Math.random() * this.GRID_SIZE);
+      const cellSize = (this.BOUNDARY_SIZE * 2) / this.GRID_SIZE;
       
-      position = new THREE.Vector3(
-        boatPosition.x + Math.cos(angle) * distance,
-        this.GOLD_FISH_DEPTH_MIN + Math.random() * (this.GOLD_FISH_DEPTH_MAX - this.GOLD_FISH_DEPTH_MIN), // Su yüzeyine yakın
-        boatPosition.z + Math.sin(angle) * distance
-      );
-      attempts++;
-    } while (position.distanceTo(boatPosition) < this.MIN_DISTANCE_FROM_BOAT + 2 && attempts < 10);
+      position.x = -this.BOUNDARY_SIZE + (gridX + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+      position.z = -this.BOUNDARY_SIZE + (gridZ + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    }
 
     // Altın balığın yüzme merkezi noktası
     const centerPoint = position.clone();
@@ -366,22 +364,20 @@ export class MarineLifeService {
   }
 
   private createFish07Instance(): FishInstance {
-    const boatPosition = this.boatService.getBoatPosition();
+    // Homojen grid tabanlı pozisyon (07 balık için)
+    const position = this.getHomogeneousFish07Position();
     
-    // Tekne çevresinde rastgele pozisyon üret (kontrollü mesafe)
-    let position: THREE.Vector3;
-    let attempts = 0;
-    do {
-      const angle = Math.random() * Math.PI * 2;
-      const distance = this.MIN_DISTANCE_FROM_BOAT + Math.random() * 3; // Tekneye yakın ama kontrollü (3-6 birim)
+    // Tekneye mesafe kontrolü
+    const boatPosition = this.boatService.getBoatPosition();
+    if (position.distanceTo(boatPosition) < this.MIN_DISTANCE_FROM_BOAT) {
+      // Farklı grid pozisyonu dene
+      const gridX = Math.floor(Math.random() * this.GRID_SIZE);
+      const gridZ = Math.floor(Math.random() * this.GRID_SIZE);
+      const cellSize = (this.BOUNDARY_SIZE * 2) / this.GRID_SIZE;
       
-      position = new THREE.Vector3(
-        boatPosition.x + Math.cos(angle) * distance,
-        this.FISH_07_DEPTH_MIN + Math.random() * (this.FISH_07_DEPTH_MAX - this.FISH_07_DEPTH_MIN),
-        boatPosition.z + Math.sin(angle) * distance
-      );
-      attempts++;
-    } while (position.distanceTo(boatPosition) < this.MIN_DISTANCE_FROM_BOAT && attempts < 10);
+      position.x = -this.BOUNDARY_SIZE + (gridX + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+      position.z = -this.BOUNDARY_SIZE + (gridZ + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    }
 
     // 07 balığın yüzme merkezi noktası
     const centerPoint = position.clone();
@@ -534,20 +530,22 @@ export class MarineLifeService {
 
   private generateNewTarget(centerPoint: THREE.Vector3): THREE.Vector3 {
     const angle = Math.random() * Math.PI * 2;
-    const distance = 2 + Math.random() * (this.MOVEMENT_RANGE - 2); // Minimum 2 birim mesafe
-    const verticalOffset = (Math.random() - 0.5) * 1.2; // Daha kontrollü yukarı aşağı hareket
+    const distance = 2 + Math.random() * (this.MOVEMENT_RANGE - 2);
+    const verticalOffset = (Math.random() - 0.5) * 1.2;
     
-    // Hedef Y pozisyonunu hesapla
+    // Hedef pozisyonları hesapla
+    let targetX = centerPoint.x + Math.cos(angle) * distance;
+    let targetZ = centerPoint.z + Math.sin(angle) * distance;
     let targetY = centerPoint.y + verticalOffset;
+    
+    // Boundary kontrolü (horizontal)
+    targetX = Math.max(-this.BOUNDARY_SIZE + 2, Math.min(this.BOUNDARY_SIZE - 2, targetX));
+    targetZ = Math.max(-this.BOUNDARY_SIZE + 2, Math.min(this.BOUNDARY_SIZE - 2, targetZ));
     
     // Su yüzeyi ve derinlik sınırlarını kontrol et
     targetY = Math.max(this.MAX_DEPTH, Math.min(this.WATER_SURFACE_LEVEL - 0.5, targetY));
     
-    return new THREE.Vector3(
-      centerPoint.x + Math.cos(angle) * distance,
-      targetY,
-      centerPoint.z + Math.sin(angle) * distance
-    );
+    return new THREE.Vector3(targetX, targetY, targetZ);
   }
 
   private checkCollisions(fish: FishInstance, fishList: FishInstance[]): THREE.Vector3 {
@@ -569,11 +567,27 @@ export class MarineLifeService {
   }
 
   private enforceBoundaries(fish: FishInstance): void {
-    // Su yüzeyi kontrolü - hiçbir balık geçemez
+    // Horizontal sınırları (64x64 alan)
+    if (fish.position.x > this.BOUNDARY_SIZE - 1) {
+      fish.position.x = this.BOUNDARY_SIZE - 1;
+      fish.velocity.x = Math.min(0, fish.velocity.x);
+    } else if (fish.position.x < -this.BOUNDARY_SIZE + 1) {
+      fish.position.x = -this.BOUNDARY_SIZE + 1;
+      fish.velocity.x = Math.max(0, fish.velocity.x);
+    }
+
+    if (fish.position.z > this.BOUNDARY_SIZE - 1) {
+      fish.position.z = this.BOUNDARY_SIZE - 1;
+      fish.velocity.z = Math.min(0, fish.velocity.z);
+    } else if (fish.position.z < -this.BOUNDARY_SIZE + 1) {
+      fish.position.z = -this.BOUNDARY_SIZE + 1;
+      fish.velocity.z = Math.max(0, fish.velocity.z);
+    }
+
+    // Su yüzeyi kontrolü
     const surfaceLimit = this.WATER_SURFACE_LEVEL - this.SURFACE_BUFFER;
     if (fish.position.y > surfaceLimit) {
       fish.position.y = surfaceLimit;
-      // Velocity'nin Y bileşenini sıfırla
       if (fish.velocity.y > 0) {
         fish.velocity.y = 0;
       }
@@ -589,17 +603,32 @@ export class MarineLifeService {
   }
 
   private enforceGoldFishBoundaries(fish: FishInstance): void {
-    // Altın balıklar için özel sınırlar - daha sıkı yukarı kontrol
-    const goldFishSurfaceLimit = this.GOLD_FISH_DEPTH_MIN + 0.2; // Minimum derinlikten sadece 0.2 birim yukarı
+    // Horizontal sınırları (aynı 64x64 alan)
+    if (fish.position.x > this.BOUNDARY_SIZE - 1) {
+      fish.position.x = this.BOUNDARY_SIZE - 1;
+      fish.velocity.x = Math.min(0, fish.velocity.x);
+    } else if (fish.position.x < -this.BOUNDARY_SIZE + 1) {
+      fish.position.x = -this.BOUNDARY_SIZE + 1;
+      fish.velocity.x = Math.max(0, fish.velocity.x);
+    }
+
+    if (fish.position.z > this.BOUNDARY_SIZE - 1) {
+      fish.position.z = this.BOUNDARY_SIZE - 1;
+      fish.velocity.z = Math.min(0, fish.velocity.z);
+    } else if (fish.position.z < -this.BOUNDARY_SIZE + 1) {
+      fish.position.z = -this.BOUNDARY_SIZE + 1;
+      fish.velocity.z = Math.max(0, fish.velocity.z);
+    }
+
+    // Altın balıklar için özel sınırlar
+    const goldFishSurfaceLimit = this.GOLD_FISH_DEPTH_MIN + 0.2;
     if (fish.position.y > goldFishSurfaceLimit) {
       fish.position.y = goldFishSurfaceLimit;
-      // Yukarı hareket eden velocity'yi sıfırla
       if (fish.velocity.y > 0) {
-        fish.velocity.y = -0.1; // Hafif aşağı itme
+        fish.velocity.y = -0.1;
       }
     }
     
-    // Altın balıklar için maksimum derinlik
     if (fish.position.y < this.GOLD_FISH_DEPTH_MAX - 0.5) {
       fish.position.y = this.GOLD_FISH_DEPTH_MAX - 0.5;
       if (fish.velocity.y < 0) {
@@ -609,39 +638,35 @@ export class MarineLifeService {
   }
 
   private enforceFish07Boundaries(fish: FishInstance): void {
-    // 07 balıklar için sıkı sınırlar - kesinlikle su yüzeyine çıkmasın
-    const fish07SurfaceLimit = this.WATER_SURFACE_LEVEL - 0.5; // Su yüzeyinin çok altında kalır
+    // Horizontal sınırları (aynı 64x64 alan)
+    if (fish.position.x > this.BOUNDARY_SIZE - 1) {
+      fish.position.x = this.BOUNDARY_SIZE - 1;
+      fish.velocity.x = Math.min(0, fish.velocity.x);
+    } else if (fish.position.x < -this.BOUNDARY_SIZE + 1) {
+      fish.position.x = -this.BOUNDARY_SIZE + 1;
+      fish.velocity.x = Math.max(0, fish.velocity.x);
+    }
+
+    if (fish.position.z > this.BOUNDARY_SIZE - 1) {
+      fish.position.z = this.BOUNDARY_SIZE - 1;
+      fish.velocity.z = Math.min(0, fish.velocity.z);
+    } else if (fish.position.z < -this.BOUNDARY_SIZE + 1) {
+      fish.position.z = -this.BOUNDARY_SIZE + 1;
+      fish.velocity.z = Math.max(0, fish.velocity.z);
+    }
+
+    // 07 balıklar için sıkı sınırlar
+    const fish07SurfaceLimit = this.WATER_SURFACE_LEVEL - 0.5;
     if (fish.position.y > fish07SurfaceLimit) {
       fish.position.y = fish07SurfaceLimit;
-      // Su yüzeyine çıkmaya çalışırsa çok güçlü aşağı itme
-      fish.velocity.y = -0.2; // Çok güçlü aşağı itme
+      fish.velocity.y = -0.2;
     }
     
-    // 07 balıklar için maksimum derinlik
     if (fish.position.y < this.FISH_07_DEPTH_MAX - 0.3) {
       fish.position.y = this.FISH_07_DEPTH_MAX - 0.3;
       if (fish.velocity.y < 0) {
-        fish.velocity.y = 0.08; // Yukarı itme
+        fish.velocity.y = 0.08;
       }
-    }
-
-    // Tekne çevresinde kalma sınırı - çok uzaklaşmasın
-    const boatPosition = this.boatService.getBoatPosition();
-    const distanceFromBoat = fish.position.distanceTo(new THREE.Vector3(boatPosition.x, fish.position.y, boatPosition.z));
-    
-    if (distanceFromBoat > 8) { // 8 birimden uzaklaşmasın
-      const direction = new THREE.Vector3(
-        boatPosition.x - fish.position.x,
-        0,
-        boatPosition.z - fish.position.z
-      ).normalize();
-      
-      fish.position.x = boatPosition.x - direction.x * 7.5;
-      fish.position.z = boatPosition.z - direction.z * 7.5;
-      
-      // Tekneye doğru yönlendirme
-      fish.velocity.x = direction.x * 0.1;
-      fish.velocity.z = direction.z * 0.1;
     }
   }
 
@@ -1023,69 +1048,11 @@ export class MarineLifeService {
     fish.rotation.z = Math.cos(swimPhase * 1.2) * 0.03 * velocityMagnitude;
   }
 
-  // Tekne hareket ettiğinde balık alanını güncelle
+  // Artık balıklar sabit alanda (64x64) homojen dağıtıldığı için
+  // tekne hareket ettiğinde balık alanını güncellemeye gerek yok
   public updateFishArea(): void {
-    const boatPosition = this.boatService.getBoatPosition();
-    
-    // Normal balıkları güncelle
-    if (this.loaded) {
-      for (let i = 0; i < this.fishInstances.length; i++) {
-        const fish = this.fishInstances[i];
-        
-        // Mevcut balığın pozisyonunu teknenin yeni pozisyonuna göre ayarla
-        const relativePos = fish.centerPoint.clone().sub(boatPosition);
-        
-        // Eğer balık çok uzaksa, yeni bir pozisyon ver
-        if (relativePos.length() > this.SPAWN_RADIUS) {
-          const newFish = this.createFishInstance();
-          this.fishInstances[i] = newFish;
-        } else {
-          // Yakın balıkların hedeflerini güncelle
-          fish.currentTarget = this.generateNewTarget(fish.centerPoint);
-          fish.targetChangeTimer = 0;
-        }
-      }
-    }
-
-    // Altın balıkları güncelle
-    if (this.goldFishLoaded) {
-      for (let i = 0; i < this.goldFishInstances.length; i++) {
-        const goldFish = this.goldFishInstances[i];
-        
-        // Mevcut altın balığın pozisyonunu teknenin yeni pozisyonuna göre ayarla
-        const relativePos = goldFish.centerPoint.clone().sub(boatPosition);
-        
-        // Eğer altın balık çok uzaksa, yeni bir pozisyon ver
-        if (relativePos.length() > this.SPAWN_RADIUS) {
-          const newGoldFish = this.createGoldFishInstance();
-          this.goldFishInstances[i] = newGoldFish;
-        } else {
-          // Yakın altın balıkların hedeflerini güncelle
-          goldFish.currentTarget = this.generateNewTarget(goldFish.centerPoint);
-          goldFish.targetChangeTimer = 0;
-        }
-      }
-    }
-
-    // 07 balıkları güncelle
-    if (this.fish07Loaded) {
-      for (let i = 0; i < this.fish07Instances.length; i++) {
-        const fish07 = this.fish07Instances[i];
-        
-        // Mevcut 07 balığın pozisyonunu teknenin yeni pozisyonuna göre ayarla
-        const relativePos = fish07.centerPoint.clone().sub(boatPosition);
-        
-        // Eğer 07 balık çok uzaksa, yeni bir pozisyon ver
-        if (relativePos.length() > this.SPAWN_RADIUS) {
-          const newFish07 = this.createFish07Instance();
-          this.fish07Instances[i] = newFish07;
-        } else {
-          // Yakın 07 balıkların hedeflerini güncelle
-          fish07.currentTarget = this.generateNewTarget(fish07.centerPoint);
-          fish07.targetChangeTimer = 0;
-        }
-      }
-    }
+    // Bu metod backward compatibility için boş bırakıldı
+    // Balıklar artık boundary kontrolü ile sabit alanda tutuluyor
   }
 
   public getFishCount(): number {
@@ -1118,6 +1085,91 @@ export class MarineLifeService {
 
   public isFullyLoaded(): boolean {
     return this.loaded && this.goldFishLoaded && this.fish07Loaded;
+  }
+
+  public setDarkMode(isDark: boolean): void {
+    this.isDarkMode = isDark;
+    this.updateMaterialsForDarkMode();
+  }
+
+  private getHomogeneousPosition(): THREE.Vector3 {
+    // Grid tabanlı homojen dağılım
+    const gridX = Math.floor(Math.random() * this.GRID_SIZE);
+    const gridZ = Math.floor(Math.random() * this.GRID_SIZE);
+    const cellSize = (this.BOUNDARY_SIZE * 2) / this.GRID_SIZE;
+    
+    // Grid hücresinin merkezi + rastgele offset
+    const x = -this.BOUNDARY_SIZE + (gridX + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    const y = this.WATER_DEPTH_MIN + Math.random() * (this.WATER_DEPTH_MAX - this.WATER_DEPTH_MIN);
+    const z = -this.BOUNDARY_SIZE + (gridZ + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    
+    return new THREE.Vector3(x, y, z);
+  }
+
+  private getHomogeneousGoldFishPosition(): THREE.Vector3 {
+    // Grid tabanlı homojen dağılım (altın balık için)
+    const gridX = Math.floor(Math.random() * this.GRID_SIZE);
+    const gridZ = Math.floor(Math.random() * this.GRID_SIZE);
+    const cellSize = (this.BOUNDARY_SIZE * 2) / this.GRID_SIZE;
+    
+    const x = -this.BOUNDARY_SIZE + (gridX + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    const y = this.GOLD_FISH_DEPTH_MIN + Math.random() * (this.GOLD_FISH_DEPTH_MAX - this.GOLD_FISH_DEPTH_MIN);
+    const z = -this.BOUNDARY_SIZE + (gridZ + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    
+    return new THREE.Vector3(x, y, z);
+  }
+
+  private getHomogeneousFish07Position(): THREE.Vector3 {
+    // Grid tabanlı homojen dağılım (07 balık için)
+    const gridX = Math.floor(Math.random() * this.GRID_SIZE);
+    const gridZ = Math.floor(Math.random() * this.GRID_SIZE);
+    const cellSize = (this.BOUNDARY_SIZE * 2) / this.GRID_SIZE;
+    
+    const x = -this.BOUNDARY_SIZE + (gridX + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    const y = this.FISH_07_DEPTH_MIN + Math.random() * (this.FISH_07_DEPTH_MAX - this.FISH_07_DEPTH_MIN);
+    const z = -this.BOUNDARY_SIZE + (gridZ + 0.5) * cellSize + (Math.random() - 0.5) * cellSize * 0.8;
+    
+    return new THREE.Vector3(x, y, z);
+  }
+
+  private updateMaterialsForDarkMode(): void {
+    // Normal balık materyalini güncelle
+    if (this.fishMaterial) {
+      if (this.fishMaterial instanceof THREE.Material) {
+        this.fishMaterial.opacity = this.isDarkMode ? 0.7 : 1.0;
+        this.fishMaterial.transparent = this.isDarkMode;
+      }
+    }
+
+    // Altın balık materyalini güncelle (dark mode'da emissive'i azalt)
+    if (this.goldFishMaterial) {
+      if (this.goldFishMaterial instanceof THREE.MeshStandardMaterial) {
+        if (this.isDarkMode) {
+          this.goldFishMaterial.emissive.setHex(0x221100); // Çok hafif altın parıltı
+          this.goldFishMaterial.emissiveIntensity = 0.2;
+        } else {
+          this.goldFishMaterial.emissive.setHex(0x443300); // Normal altın parıltı
+          this.goldFishMaterial.emissiveIntensity = 0.4;
+        }
+      }
+    }
+
+    // 07 balık materyalini güncelle (kırmızı balık - dark mode'da parlaklığı azalt)
+    if (this.fish07Material) {
+      if (this.fish07Material instanceof THREE.MeshStandardMaterial) {
+        if (this.isDarkMode) {
+          this.fish07Material.emissive.setHex(0x110000); // Çok hafif kırmızı parıltı
+          this.fish07Material.emissiveIntensity = 0.1;
+          this.fish07Material.opacity = 0.8;
+          this.fish07Material.transparent = true;
+        } else {
+          this.fish07Material.emissive.setHex(0x330000); // Normal kırmızı parıltı
+          this.fish07Material.emissiveIntensity = 0.3;
+          this.fish07Material.opacity = 1.0;
+          this.fish07Material.transparent = false;
+        }
+      }
+    }
   }
 
   public dispose(): void {
